@@ -1,226 +1,417 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>無想のMusicPlayer </title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>無想のMusicPlayer — Cyber CRT</title>
+
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
 <style>
-@import url('https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap');
+:root{
+  --bg: #030303;
+  --green: #00ff41;
+  --accent: #00ccff;
+  --muted: rgba(0,255,65,0.12);
+  --glass: rgba(0,0,0,0.45);
+  --glow: 0 0 10px rgba(0,255,65,0.12);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#000;font-family:'Share Tech Mono',monospace;color:var(--green);overflow:hidden}
+#app{position:relative;width:100%;height:100%;background:linear-gradient(180deg,#010101 0%, #050509 60%);}
 
-:root {
-  --main-bg: #0a0a0a;
-  --text-color: #00ff41;
-  --highlight-color: #f0f0f0;
-  --lyrics-color: #00ccff;
+/* CRT scan + vignette */
+#app::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.22) 50%),
+    radial-gradient(ellipse at center, rgba(0,0,0,0) 50%, rgba(0,0,0,0.6) 100%);
+  background-size:100% 3px, cover;
+  mix-blend-mode:screen; z-index:4; animation:scan 6s linear infinite;
+}
+@keyframes scan{ from{background-position:0 0} to{background-position:0 100%} }
+
+/* container layout */
+.header{
+  padding:18px 32px; position:relative; z-index:10;
+  display:flex;align-items:center;gap:18px;
+}
+.brand{
+  font-family:'VT323', monospace; font-size:28px; color:var(--green);
+  text-shadow:0 0 10px var(--green), 0 0 30px rgba(0,255,65,0.08);
+}
+.subtitle{color:var(--accent);opacity:0.8;font-size:13px}
+
+/* main area */
+.main{
+  display:flex; gap:18px;
+  padding: 12px 24px 80px 24px; height:calc(100% - 86px); position:relative; z-index:5;
+}
+.left{
+  width:300px; min-width:220px; max-width:360px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.45), rgba(10,10,10,0.35));
+  border:1px solid rgba(0,255,65,0.12);
+  padding:14px; border-radius:10px; box-shadow:var(--glow);
+  backdrop-filter: blur(6px);
+}
+.right{
+  flex:1; padding:12px; border-radius:10px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.25), rgba(5,5,10,0.2));
+  border:1px solid rgba(0,255,65,0.06);
 }
 
-* { box-sizing: border-box; }
-body, html {
-  margin: 0; padding: 0;
-  width: 100%; height: 100%;
-  background-color: var(--main-bg);
-  color: var(--text-color);
-  font-family: 'Share Tech Mono', monospace;
-  overflow: hidden;
-  text-shadow: 0 0 5px var(--text-color), 0 0 10px var(--text-color);
+/* song list */
+.songs-title{font-size:14px;color:var(--accent);margin-bottom:8px}
+.song-btn{
+  display:flex;align-items:center;justify-content:space-between;
+  background:transparent;border:1px solid rgba(0,255,65,0.06);
+  color:var(--green);padding:8px 10px;margin:6px 0;border-radius:6px;cursor:pointer;
+  transition:all .15s;
 }
+.song-btn:hover{transform:translateX(6px);box-shadow:0 0 14px rgba(0,255,65,0.06)}
+.song-btn .title{font-size:13px}
+.song-btn .meta{font-size:11px;color:rgba(0,255,65,0.5)}
 
-#container {
-  width: 100%; height: 100%;
-  padding: 2vw;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
+/* player */
+.player-area{margin-top:14px;padding:12px;background:var(--glass);border-radius:8px;border:1px solid rgba(0,255,65,0.05)}
+.audio-controls{display:flex;align-items:center;gap:12px}
+.btn{background:transparent;border:1px solid rgba(0,255,65,0.12);padding:8px 12px;border-radius:6px;color:var(--green);cursor:pointer}
+.btn.primary{background:linear-gradient(90deg, rgba(0,255,65,0.06), rgba(0,255,65,0.02));box-shadow:0 0 12px rgba(0,255,65,0.05)}
+.file-info{margin-top:8px;font-size:12px;color:rgba(0,255,65,0.7)}
 
-/* CRT扫描线效果 */
-#container::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(rgba(18,16,16,0) 50%,rgba(0,0,0,0.25) 50%),
-              linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06));
-  background-size: 100% 3px, 4px 100%;
-  animation: scanline 8s linear infinite;
-  pointer-events: none;
-  z-index: 2;
+/* visuals (typing terminal + binary canvas) */
+.visuals{
+  height:100%; position:relative; overflow:hidden; border-radius:8px; padding:12px;
 }
-@keyframes scanline { from {background-position:0 0;} to {background-position:0 100%;} }
+.terminal{
+  height:60%; overflow:auto; padding:12px; border-radius:6px;
+  background:linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.12));
+  border:1px solid rgba(0,255,65,0.04);
+}
+.line{font-family:'VT323', monospace;color:var(--green); margin:6px 0; font-size:14px; display:flex; align-items:center}
+.prompt{color:rgba(0,255,65,0.6); margin-right:8px}
+.cursor{width:10px;height:18px;background:var(--green);margin-left:6px;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
 
-#visuals {
-  flex: 1;
-  overflow-y: auto;
-  font-size: 1rem;
-  padding-bottom: 10px;
-}
-#lyrics-container {
-  border-top: 1px solid var(--text-color);
-  height: 40%;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding-top: 10px;
-}
-.lyrics-line {
-  font-family: 'VT323', monospace;
-  font-size: 1.6em;
-  color: var(--lyrics-color);
-  margin: 5px 0;
-  opacity: 0.5;
-  transition: 0.3s;
-}
-.lyrics-line.active {
-  opacity: 1;
-  transform: scale(1.1);
-  color: var(--highlight-color);
-  text-shadow: 0 0 8px var(--highlight-color);
-}
-#controls {
-  position: fixed;
-  bottom: 20px; right: 20px;
-  z-index: 10;
-  display: flex; flex-direction: column; gap: 10px;
-}
-.control-btn {
-  background: rgba(0,0,0,0.7);
-  border: 1px solid var(--text-color);
-  color: var(--text-color);
-  padding: 8px 12px;
-  cursor: pointer;
-}
-.control-btn:hover {
-  background: rgba(0,255,65,0.2);
-}
-#file-info {
-  position: fixed;
-  top: 10px; left: 20px;
-  color: var(--text-color);
+/* lyrics area */
+.lyrics-wrap{height:40%; overflow:auto;padding:12px;border-radius:6px;margin-top:12px;border:1px solid rgba(0,255,65,0.03); background:rgba(0,0,0,0.12)}
+.lyric-line{font-family:'VT323',monospace;font-size:20px;color:var(--accent);opacity:0.6;margin:8px 0;transition:all .2s;text-align:center}
+.lyric-line.active{color:var(--green);opacity:1;transform:scale(1.08);text-shadow:0 0 8px var(--green)}
+
+/* binary canvas fills right area */
+.binary-canvas{position:absolute;inset:0;z-index:0;opacity:0.18;pointer-events:none}
+
+/* responsive */
+@media(max-width:900px){
+  .main{flex-direction:column;padding:12px}
+  .left{width:100%}
+  .right{width:100%}
 }
 </style>
 </head>
 <body>
-<div id="container">
-  <div id="file-info">🎵 無想のMusicPlayer (GitHub Pages 版)</div>
-  <div id="visuals"></div>
-  <div id="lyrics-container"><div class="lyrics-line">加载中...</div></div>
+<div id="app">
+  <div class="header">
+    <div class="brand">無想のMusicPlayer</div>
+    <div class="subtitle">cyber CRT • typewriter • matrix rain</div>
+  </div>
+
+  <div class="main">
+    <div class="left">
+      <div class="songs-title">歌曲列表（自动读取 /songs）</div>
+      <div id="songs-list" aria-live="polite">读取中…</div>
+
+      <div class="player-area">
+        <div class="audio-controls">
+          <button id="playPause" class="btn primary">播放 / 暂停</button>
+          <button id="stopBtn" class="btn">停止</button>
+          <div style="flex:1"></div>
+          <div id="timeLabel" style="font-size:12px;color:rgba(0,255,65,0.7)">00:00 / 00:00</div>
+        </div>
+        <div class="file-info" id="fileInfo">未加载文件</div>
+      </div>
+    </div>
+
+    <div class="right visuals">
+      <canvas id="binaryCanvas" class="binary-canvas"></canvas>
+
+      <div class="terminal" id="terminal" style="position:relative;z-index:2">
+        <!-- 动态打字机日志 -->
+      </div>
+
+      <div class="lyrics-wrap" id="lyricsWrap" style="position:relative;z-index:2">
+        <div id="lyricsContent"><div class="lyric-line">歌词未加载</div></div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<div id="controls"></div>
-
-<audio id="song" controls style="position:fixed;bottom:10px;left:10px;width:90%;"></audio>
+<!-- audio element -->
+<audio id="audio" preload="metadata"></audio>
 
 <script>
-const GITHUB_USER = "GGGinnnnn";  
-const REPO_NAME   = "music";        
-const BRANCH      = "main";               
+/* ========== 配置（已替换为你的仓库） ========== */
+const GITHUB_USER = "GGGinnnnn";
+const REPO_NAME   = "music";
+const BRANCH      = "main";
+/* ================================================ */
 
-const controls = document.getElementById('controls');
-const visuals = document.getElementById('visuals');
-const lyricsContainer = document.getElementById('lyrics-container');
-const song = document.getElementById('song');
-const fileInfo = document.getElementById('file-info');
-let lyricsData = [], currentLyricIndex = -1;
-let animationFrameId;
+const songsListEl = document.getElementById('songs-list');
+const terminal = document.getElementById('terminal');
+const audio = document.getElementById('audio');
+const playPauseBtn = document.getElementById('playPause');
+const stopBtn = document.getElementById('stopBtn');
+const fileInfo = document.getElementById('fileInfo');
+const timeLabel = document.getElementById('timeLabel');
+const lyricsWrap = document.getElementById('lyricsWrap');
+const lyricsContent = document.getElementById('lyricsContent');
 
-// 加载歌曲列表
-async function loadSongList() {
-  try {
-    const apiURL = `https://api.github.com/repos/${GITHUB_USER}/${REPO_NAME}/contents/songs?ref=${BRANCH}`;
-    const res = await fetch(apiURL);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+let songsIndex = []; // {name, download_url}
+let lyricsData = []; // [{time,text}]
+let currentLyricIndex = -1;
 
-    controls.innerHTML = "";
-    if (Array.isArray(data)) {
-      data.filter(f => f.name.match(/\.(mp3|wav)$/i)).forEach(f => {
-        const btn = document.createElement('button');
-        btn.textContent = f.name.replace(/\.[^/.]+$/, "");
-        btn.className = 'control-btn';
-        btn.onclick = () => loadSong(f.download_url, f.name);
-        controls.appendChild(btn);
-      });
-      if (controls.innerHTML === "") controls.innerHTML = "<div>未找到歌曲文件</div>";
+/* ---------- Typing effect (typeLine) ---------- */
+function typeLine({text = "", className = "", speed = 30, onComplete = null}) {
+  const line = document.createElement('div');
+  line.className = 'line ' + className;
+  line.innerHTML = `<span class="prompt">> </span><span class="text"></span><span class="cursor"></span>`;
+  terminal.appendChild(line);
+  terminal.scrollTop = terminal.scrollHeight;
+  const textSpan = line.querySelector('.text');
+  const cursor = line.querySelector('.cursor');
+  let i = 0;
+  const t = setInterval(() => {
+    if (i < text.length) {
+      textSpan.textContent += text.charAt(i);
+      i++;
+      terminal.scrollTop = terminal.scrollHeight;
+    } else {
+      clearInterval(t);
+      cursor.remove();
+      if (onComplete) onComplete();
     }
-  } catch (err) {
-    controls.innerHTML = `<div>⚠️ 加载失败: ${err.message}</div>`;
-  }
+  }, speed);
 }
 
-async function loadSong(url, name) {
-  cancelAnimationFrame(animationFrameId);
-  currentLyricIndex = -1;
-  lyricsContainer.innerHTML = "<div class='lyrics-line'>歌词加载中...</div>";
-  visuals.innerHTML = "";
+/* ---------- Matrix binary rain ---------- */
+const canvas = document.getElementById('binaryCanvas');
+const ctx = canvas.getContext('2d');
+let columns, drops, fontSize;
+function initBinary() {
+  canvas.width = canvas.clientWidth || window.innerWidth;
+  canvas.height = canvas.clientHeight || window.innerHeight;
+  fontSize = 14;
+  columns = Math.floor(canvas.width / fontSize);
+  drops = [];
+  for (let i = 0; i < columns; i++) drops[i] = Math.floor(Math.random() * canvas.height / fontSize);
+}
+function drawBinary() {
+  ctx.fillStyle = "rgba(0,0,0,0.08)";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--green') || '#00ff41';
+  ctx.font = fontSize + "px monospace";
+  const chars = "アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン0123456789";
+  for (let i = 0; i < drops.length; i++) {
+    const text = chars.charAt(Math.floor(Math.random() * chars.length));
+    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+    drops[i]++;
+  }
+  requestAnimationFrame(drawBinary);
+}
+window.addEventListener('resize', () => {
+  initBinary();
+});
 
-  fileInfo.textContent = `🎶 当前歌曲: ${name}`;
-  song.src = url;
-  song.play();
-
-  // 自动加载歌词
-  const lyricName = name.replace(/\.[^/.]+$/, ".lrc");
-  const lyricURL = `https://raw.githubusercontent.com/${GITHUB_USER}/${REPO_NAME}/${BRANCH}/lyrics/${lyricName}`;
+/* ---------- GitHub API: list songs ---------- */
+async function fetchSongList() {
+  typeLine({text: "正在连接 GitHub 仓库...", speed:20});
+  const api = `https://api.github.com/repos/${GITHUB_USER}/${REPO_NAME}/contents/songs?ref=${BRANCH}`;
   try {
-    const res = await fetch(lyricURL);
-    if (!res.ok) throw new Error("未找到歌词");
-    const text = await res.text();
-    parseLyrics(text);
-    displayLyrics();
+    const res = await fetch(api);
+    if (!res.ok) throw new Error('无法访问 songs 目录: ' + res.status);
+    const data = await res.json();
+    // 过滤音频文件
+    songsIndex = data.filter(f => f.name.match(/\.(mp3|wav|m4a|ogg)$/i))
+                     .map(f => ({name: f.name, download_url: f.download_url}));
+    if (songsIndex.length === 0) {
+      songsListEl.innerHTML = "<div style='color:rgba(255,0,0,0.6)'>未在 /songs 找到音频文件</div>";
+      typeLine({text: "未发现歌曲，请检查 /songs 文件夹是否包含音频文件。", speed:20});
+      return;
+    }
+    renderSongButtons();
+    typeLine({text: `发现 ${songsIndex.length} 首歌曲。`, speed:20});
   } catch (e) {
-    lyricsContainer.innerHTML = `<div class='lyrics-line'>❌ ${e.message}</div>`;
+    songsListEl.innerHTML = `<div style="color:rgba(255,0,0,0.6)">加载失败: ${e.message}</div>`;
+    typeLine({text: `错误: ${e.message}`, speed:20});
   }
 }
 
-// 解析LRC歌词
-function parseLyrics(content) {
+function renderSongButtons() {
+  songsListEl.innerHTML = '';
+  songsIndex.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'song-btn';
+    btn.innerHTML = `<span class="title">${s.name.replace(/\.[^/.]+$/, '')}</span><span class="meta">播放</span>`;
+    btn.onclick = () => {
+      loadAndPlaySong(s);
+    }
+    songsListEl.appendChild(btn);
+  });
+}
+
+/* ---------- Load & play song + auto-load lyrics ---------- */
+async function loadAndPlaySong(songObj) {
+  // reset lyric display
   lyricsData = [];
-  const lines = content.split('\n');
-  const timeRegex = /\[(\d+):(\d+)(?:[.:](\d+))?\]/;
-  for (const line of lines) {
-    const match = line.match(timeRegex);
-    if (match) {
-      const min = parseInt(match[1]);
-      const sec = parseInt(match[2]);
-      const ms  = parseInt(match[3] || "0");
-      const time = min * 60 + sec + ms / 100;
-      const text = line.replace(timeRegex, '').trim();
-      if (text) lyricsData.push({ time, text });
+  currentLyricIndex = -1;
+  lyricsContent.innerHTML = `<div class="lyric-line">正在加载歌词…</div>`;
+
+  typeLine({text: `加载歌曲: ${songObj.name}`, speed:18});
+  audio.src = songObj.download_url;
+  audio.crossOrigin = "anonymous";
+  try {
+    await audio.play();
+    typeLine({text: `播放: ${songObj.name}`, speed:18});
+    fileInfo.textContent = "当前: " + songObj.name;
+  } catch (err) {
+    typeLine({text: `播放失败: ${err.message}`, speed:18});
+  }
+
+  // fetch lyrics
+  const lyricName = songObj.name.replace(/\.[^/.]+$/, '.lrc');
+  const lyricRaw = `https://raw.githubusercontent.com/${GITHUB_USER}/${REPO_NAME}/${BRANCH}/lyrics/${lyricName}`;
+  try {
+    const r = await fetch(lyricRaw);
+    if (!r.ok) throw new Error('未找到歌词');
+    const text = await r.text();
+    parseLRC(text);
+    renderLyricsLines();
+    typeLine({text: `歌词加载成功: ${lyricName}`, speed:18});
+  } catch (e) {
+    lyricsContent.innerHTML = `<div class="lyric-line">未找到歌词: ${lyricName}</div>`;
+    typeLine({text: `歌词加载失败: ${e.message}`, speed:18});
+  }
+}
+
+/* ---------- parse LRC with tolerances ---------- */
+function parseLRC(content) {
+  lyricsData = [];
+  const lines = content.split(/\r?\n/);
+  const timeRegexGlobal = /\[(\d+):(\d+)([:.](\d+))?\]/g;
+  for (let raw of lines) {
+    if (!raw.trim()) continue;
+    // gather timestamps
+    let matches = [...raw.matchAll(timeRegexGlobal)];
+    let text = raw.replace(timeRegexGlobal, '').trim();
+    if (matches.length === 0) {
+      // skip non-timed lines
+      continue;
+    }
+    for (let m of matches) {
+      const min = parseInt(m[1],10);
+      const sec = parseInt(m[2],10);
+      const frac = m[4] ? m[4] : "0";
+      // normalize milliseconds: if one-digit -> *100, two-digit -> *10, three-digit -> as-is
+      let ms = 0;
+      if (frac.length === 1) ms = parseInt(frac)*100;
+      else if (frac.length === 2) ms = parseInt(frac)*10;
+      else ms = parseInt(frac.slice(0,3));
+      const time = min*60 + sec + (ms/1000);
+      if (text) lyricsData.push({time, text});
     }
   }
   lyricsData.sort((a,b)=>a.time-b.time);
 }
 
-// 显示歌词
-function displayLyrics() {
-  lyricsContainer.innerHTML = "";
-  lyricsData.forEach((lyric,i)=>{
-    const div = document.createElement('div');
-    div.className = 'lyrics-line';
-    div.id = `lyric-${i}`;
-    div.textContent = lyric.text;
-    lyricsContainer.appendChild(div);
-  });
+/* ---------- render lyrics into DOM ---------- */
+function renderLyricsLines() {
+  lyricsContent.innerHTML = '';
+  if (!lyricsData.length) {
+    lyricsContent.innerHTML = `<div class="lyric-line">歌词为空或未解析到时间戳</div>`;
+    return;
+  }
+  for (let i=0;i<lyricsData.length;i++) {
+    const d = lyricsData[i];
+    const el = document.createElement('div');
+    el.className = 'lyric-line';
+    el.id = 'ly_'+i;
+    el.textContent = d.text;
+    lyricsContent.appendChild(el);
+  }
 }
 
-// 更新时间驱动歌词滚动
-song.addEventListener('timeupdate', ()=>{
-  if (!lyricsData.length) return;
-  const t = song.currentTime;
-  let idx = lyricsData.findIndex((l,i)=> t < l.time && i>0) - 1;
-  if (idx < 0) idx = lyricsData.length - 1;
+/* ---------- sync lyrics during playback ---------- */
+audio.addEventListener('timeupdate', ()=>{
+  const t = audio.currentTime;
+  // find last index where time <= t
+  let idx = -1;
+  for (let i=0;i<lyricsData.length;i++){
+    if (t >= lyricsData[i].time) idx = i;
+    else break;
+  }
   if (idx !== currentLyricIndex) {
-    document.querySelectorAll('.lyrics-line').forEach(l=>l.classList.remove('active'));
-    const active = document.getElementById(`lyric-${idx}`);
-    if (active) {
-      active.classList.add('active');
-      active.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // clear old
+    if (currentLyricIndex >= 0) {
+      const old = document.getElementById('ly_'+currentLyricIndex);
+      if (old) old.classList.remove('active');
     }
     currentLyricIndex = idx;
+    if (idx >= 0) {
+      const el = document.getElementById('ly_'+idx);
+      if (el) {
+        el.classList.add('active');
+        // smooth scroll into center
+        el.scrollIntoView({behavior:'smooth', block:'center'});
+      }
+    }
   }
+  updateTimeLabel();
 });
 
-// 初始加载
-loadSongList();
+/* ---------- simple time label ---------- */
+function formatTime(s){
+  if (!isFinite(s)) return '00:00';
+  const m = Math.floor(s/60).toString().padStart(2,'0');
+  const sec = Math.floor(s%60).toString().padStart(2,'0');
+  return `${m}:${sec}`;
+}
+function updateTimeLabel(){
+  timeLabel.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+}
+
+/* ---------- controls ---------- */
+playPauseBtn.addEventListener('click', async ()=>{
+  if (audio.paused) {
+    try { await audio.play(); typeLine({text:'播放'}); } catch(e){ typeLine({text:'播放失败: '+e.message}); }
+  } else {
+    audio.pause(); typeLine({text:'暂停'});
+  }
+});
+stopBtn.addEventListener('click', ()=>{
+  audio.pause(); audio.currentTime = 0; typeLine({text:'停止'}); updateTimeLabel();
+});
+
+/* ---------- initialize ---------- */
+initBinary();
+drawBinary();
+fetchSongList();
+
+/* ---------- initial messages (typewriter) ---------- */
+setTimeout(()=>{ typeLine({text:'系统初始化...', speed:18}); }, 300);
+setTimeout(()=>{ typeLine({text:'检测 GitHub Pages 环境...', speed:18}); }, 1000);
+setTimeout(()=>{ typeLine({text:'正在准备显示效果：CRT · 打字机 · 二进制雨', speed:18}); }, 1900);
+
+/* ---------- safety for canvas sizing ---------- */
+(function fitCanvas(){
+  function resize(){
+    canvas.width = canvas.clientWidth || window.innerWidth;
+    canvas.height = canvas.clientHeight || window.innerHeight;
+    initBinary();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+})();
 </script>
 </body>
 </html>
