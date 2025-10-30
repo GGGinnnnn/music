@@ -1,0 +1,15 @@
+{
+    "songs": [
+      {
+        "title": "My Song",
+        "file": "songs/mysong.mp3",
+        "lyrics": "lyrics/mysong.lrc"
+      },
+      {
+        "title": "Another Track",
+        "file": "songs/another.mp3",
+        "lyrics": "lyrics/another.lrc"
+      }
+    ]
+  }
+  

@@ -393,6 +393,42 @@
         let isPlaying = false;
         let userTimeline = false;
 
+        async function loadSongList() {
+    try {
+        const res = await fetch('songs.json');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        
+        const container = document.getElementById('file-info');
+        container.innerHTML = `<strong>歌曲列表:</strong><br>`;
+        
+        data.songs.forEach(song => {
+            const btn = document.createElement('button');
+            btn.textContent = song.title;
+            btn.className = 'control-btn';
+            btn.onclick = () => {
+                document.getElementById('song').src = song.file;
+                typeLine({ text: `已加载: ${song.title}` });
+                fileInfo.textContent = `当前歌曲: ${song.title}`;
+                
+                // 自动加载歌词
+                fetch(song.lyrics)
+                    .then(r => r.text())
+                    .then(txt => {
+                        parseLyrics(txt, 'utf-8');
+                    })
+                    .catch(() => typeLine({ text: "未找到歌词文件", className: 'error' }));
+            };
+            container.appendChild(btn);
+        });
+    } catch (err) {
+        typeLine({ text: `无法加载歌曲列表: ${err.message}`, className: 'error' });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadSongList);
+
+
         // 文件选择处理
         audioFileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
@@ -407,8 +443,6 @@
                 // 尝试解析文件名作为歌曲信息
                 parseFileName(file.name);
                 
-                // 尝试自动查找歌词文件
-                autoFindLyrics(file.name);
             }
         });
         
