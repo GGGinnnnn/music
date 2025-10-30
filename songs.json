@@ -1,15 +1,25 @@
-{
-    "songs": [
-      {
-        "title": "My Song",
-        "file": "songs/mysong.mp3",
-        "lyrics": "lyrics/mysong.lrc"
-      },
-      {
-        "title": "Another Track",
-        "file": "songs/another.mp3",
-        "lyrics": "lyrics/another.lrc"
-      }
-    ]
-  }
-  
+const GITHUB_USER = 'GGGinnnnn';
+const REPO = 'music';
+
+async function fetchSongsFromRepo() {
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${REPO}/songs`);
+    const files = await res.json();
+    const container = document.getElementById('file-info');
+    
+    files.forEach(f => {
+        if (f.name.endsWith('.mp3') || f.name.endsWith('.wav')) {
+            const btn = document.createElement('button');
+            btn.textContent = f.name;
+            btn.className = 'control-btn';
+            btn.onclick = () => {
+                const songURL = f.download_url;
+                song.src = songURL;
+                typeLine({ text: `加载: ${f.name}` });
+                fileInfo.textContent = `当前歌曲: ${f.name}`;
+            };
+            container.appendChild(btn);
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', fetchSongsFromRepo);
