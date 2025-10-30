@@ -411,27 +411,148 @@
             }
         });
         
-        // 歌词文件选择处理
-        lyricsFileInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                lyricsStatus.textContent = `歌词文件: ${file.name} (正在加载...)`;
-                
-                // 读取文件为ArrayBuffer
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    currentLyricsBuffer = e.target.result;
-                    
-                    // 显示编码选择器
-                    encodingSelector.style.display = 'block';
-                    typeLine({ text: "请选择字符编码" });
-                    
-                    // 尝试自动检测编码
-                    tryAutoEncoding(currentLyricsBuffer);
-                };
-                reader.readAsArrayBuffer(file);
+        // 改进歌词文件处理
+lyricsFileInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        // 验证文件大小（限制在1MB以内）
+        if (file.size > 1024 * 1024) {
+            typeLine({ text: "错误: 歌词文件过大（最大1MB）", className: 'error' });
+            return;
+        }
+        
+        lyricsStatus.textContent = `歌词文件: ${file.name} (加载中...)`;
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            currentLyricsBuffer = e.target.result;
+            encodingSelector.style.display = 'block';
+            typeLine({ text: "请选择字符编码（推荐先尝试UTF-8）" });
+            tryAutoEncoding(currentLyricsBuffer);
+        };
+        
+        reader.onerror = function() {
+            typeLine({ text: "歌词文件读取失败", className: 'error' });
+        };
+        
+        reader.readAsArrayBuffer(file);
+    }
+});
+
+// 改进编码检测
+function tryAutoEncoding(buffer) {
+    const encodings = ['utf-8', 'shift_jis', 'euc-jp', 'iso-2022-jp'];
+    let detected = false;
+    
+    for (let encoding of encodings) {
+        try {
+            const decoded = decodeBuffer(buffer, encoding);
+            if (decoded && decoded.length > 0 && !hasTooManyReplacementChars(decoded)) {
+                encodingSelector.value = encoding;
+                parseLyricsWithEncoding(buffer, encoding);
+                typeLine({ text: `自动检测编码: ${encoding} - 如果显示异常请手动选择` });
+                detected = true;
+                break;
             }
-        });
+        } catch (e) {
+            continue;
+        }
+    }
+    
+    if (!detected) {
+        // 默认使用UTF-8并显示警告
+        typeLine({ text: "无法自动检测编码，使用UTF-8。如果乱码请手动选择。", className: 'error' });
+        encodingSelector.value = 'utf-8';
+        parseLyricsWithEncoding(buffer, 'utf-8');
+    }
+}
+
+// 改进歌词解析，增加容错
+function parseLRC(content) {
+    lyricsData = [];
+    const lines = content.split('\n');
+    let lineCount = 0;
+    
+    lines.forEach((line, index) => {
+        if (line.trim() === '') return;
+        
+        // 跳过ID3标签
+        if (line.match(/^\[(ar|ti|al|by|offset|length):/i)) {
+            return;
+        }
+        
+        // 更灵活的时间戳匹配
+        const timeRegex = /\[(\d+):(\d+)([:.](\d+))?\]/g;
+        const timeTags = [];
+        let text = line;
+        let match;
+        
+        while ((match = timeRegex.exec(line)) !== null) {
+            const minutes = parseInt(match[1]) || 0;
+            const seconds = parseInt(match[2]) || 0;
+            let milliseconds = 0;
+            
+            if (match[4]) {
+                const msStr = match[4].toString();
+                milliseconds = msStr.length === 1 ? parseInt(msStr) * 100 :
+                              msStr.length === 2 ? parseInt(msStr) * 10 :
+                              parseInt(msStr.substring(0, 3));
+            }
+            
+            const timeInSeconds = minutes * 60 + seconds + milliseconds / 1000;
+            timeTags.push(timeInSeconds);
+            text = text.replace(match[0], '');
+        }
+        
+        text = text.trim();
+        
+        if (timeTags.length > 0 && text) {
+            timeTags.forEach(time => {
+                lyricsData.push({
+                    time: time,
+                    text: text,
+                    originalLine: index + 1
+                });
+                lineCount++;
+            });
+        } else if (text && !text.startsWith('[')) {
+            // 处理没有时间戳的文本行（作为提示信息）
+            console.log(`跳过无时间戳行 ${index + 1}: ${text}`);
+        }
+    });
+    
+    // 按时间排序
+    lyricsData.sort((a, b) => a.time - b.time);
+    
+    console.log(`解析到 ${lyricsData.length} 行歌词数据`);
+    
+    if (lyricsData.length === 0) {
+        typeLine({ text: "警告: 未找到有效的时间轴歌词", className: 'error' });
+        // 尝试作为纯文本歌词解析
+        parseTextLyrics(content);
+    }
+}
+        // // 歌词文件选择处理
+        // lyricsFileInput.addEventListener('change', function(e) {
+        //     const file = e.target.files[0];
+        //     if (file) {
+        //         lyricsStatus.textContent = `歌词文件: ${file.name} (正在加载...)`;
+                
+        //         // 读取文件为ArrayBuffer
+        //         const reader = new FileReader();
+        //         reader.onload = function(e) {
+        //             currentLyricsBuffer = e.target.result;
+                    
+        //             // 显示编码选择器
+        //             encodingSelector.style.display = 'block';
+        //             typeLine({ text: "请选择字符编码" });
+                    
+        //             // 尝试自动检测编码
+        //             tryAutoEncoding(currentLyricsBuffer);
+        //         };
+        //         reader.readAsArrayBuffer(file);
+        //     }
+        // });
         
         // 编码选择器事件处理
         encodingSelector.addEventListener('change', function() {
@@ -716,32 +837,165 @@
             visuals.appendChild(infoLine);
         }
         
-        function togglePlay() {
-            if (!song.src) {
-                typeLine({ text: "错误：请先选择歌曲", className: 'error' });
-                return;
+        // 修改 togglePlay 函数，添加更好的错误处理
+async function togglePlay() {
+    if (!song.src) {
+        typeLine({ text: "错误：请先选择歌曲", className: 'error' });
+        return;
+    }
+    
+    try {
+        if (isPlaying) {
+            song.pause();
+            playBtn.textContent = '重新播放';
+            cancelAnimationFrame(animationFrameId);
+        } else {
+            // 确保音频上下文在用户交互时创建
+            if (audioContext && audioContext.state === 'suspended') {
+                await audioContext.resume();
             }
             
-            if (isPlaying) {
-                song.pause();
-                playBtn.textContent = '重新播放';
-                cancelAnimationFrame(animationFrameId);
-            } else {
-                song.play().then(() => {
-                    playBtn.textContent = '暂停';
-                    if (!userTimeline) {
-                        // 使用默认时间轴
-                        timeline = [...defaultTimeline];
-                    }
-                    animationFrameId = requestAnimationFrame(update);
-                }).catch(e => {
-                    console.error("Audio playback failed:", e);
-                    typeLine({ text: "错误: 无法播放", className: 'error' });
-                });
+            await song.play();
+            playBtn.textContent = '暂停';
+            if (!userTimeline) {
+                timeline = [...defaultTimeline];
             }
-            
-            isPlaying = !isPlaying;
+            animationFrameId = requestAnimationFrame(update);
         }
+        isPlaying = !isPlaying;
+    } catch (error) {
+        console.error("播放失败:", error);
+        typeLine({ text: `播放错误: ${error.message}`, className: 'error' });
+        
+        // 提供备用方案
+        if (error.name === 'NotSupportedError') {
+            typeLine({ text: "提示: 尝试使用MP3格式文件", className: 'error' });
+        }
+    }
+}
+
+// 修改音频文件处理，添加格式验证
+audioFileInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        // 验证文件类型
+        const validTypes = ['audio/wav', 'audio/mp3', 'audio/mpeg', 'audio/x-wav'];
+        if (!validTypes.includes(file.type) && !file.name.match(/\.(mp3|wav)$/i)) {
+            typeLine({ text: "错误: 不支持的音频格式，请使用MP3或WAV文件", className: 'error' });
+            return;
+        }
+        
+        const fileURL = URL.createObjectURL(file);
+        song.src = fileURL;
+        
+        // 添加页面加载完成后的初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 检查是否在GitHub Pages环境
+    if (window.location.hostname.includes('github.io')) {
+        console.log('运行在GitHub Pages环境');
+        // 可以在这里添加GitHub Pages特定的初始化代码
+    }
+    
+    // 预加载必要的资源
+    preloadResources();
+});
+
+function preloadResources() {
+    // 确保iconv-lite加载完成
+    if (typeof ICONVLITE === 'undefined') {
+        console.warn('iconv-lite未正确加载，歌词编码支持可能受限');
+        typeLine({ text: "注意: 编码支持库加载中...", className: 'error' });
+    }
+}
+
+// 改进错误处理
+window.addEventListener('error', function(e) {
+    console.error('全局错误:', e.error);
+    typeLine({ text: `发生错误: ${e.message}`, className: 'error' });
+});
+
+// 添加离线支持检测
+if (!navigator.onLine) {
+    typeLine({ text: "注意: 当前处于离线状态", className: 'error' });
+}
+
+window.addEventListener('online', function() {
+    typeLine({ text: "网络连接已恢复" });
+});
+
+window.addEventListener('offline', function() {
+    typeLine({ text: "网络连接已断开", className: 'error' });
+});
+
+        // 添加加载事件监听
+        song.addEventListener('canplaythrough', function() {
+            fileInfo.textContent = `文件就绪: ${file.name} (${formatFileSize(file.size)})`;
+            typeLine({ text: "音频文件加载成功" });
+        });
+        
+        song.addEventListener('error', function(e) {
+            console.error('音频加载错误:', song.error);
+            typeLine({ text: `音频加载失败: ${getAudioError(song.error)}`, className: 'error' });
+        });
+        
+        fileInfo.textContent = `加载中: ${file.name}`;
+        
+        // 重置播放状态
+        resetExperience();
+        parseFileName(file.name);
+        autoFindLyrics(file.name);
+    }
+});
+
+// 添加辅助函数
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function getAudioError(error) {
+    switch(error.code) {
+        case error.MEDIA_ERR_ABORTED:
+            return '播放被中止';
+        case error.MEDIA_ERR_NETWORK:
+            return '网络错误';
+        case error.MEDIA_ERR_DECODE:
+            return '文件解码失败 - 可能文件已损坏或格式不支持';
+        case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+            return '不支持的音频格式';
+        default:
+            return '未知错误';
+    }
+}
+        // function togglePlay() {
+        //     if (!song.src) {
+        //         typeLine({ text: "错误：请先选择歌曲", className: 'error' });
+        //         return;
+        //     }
+            
+        //     if (isPlaying) {
+        //         song.pause();
+        //         playBtn.textContent = '重新播放';
+        //         cancelAnimationFrame(animationFrameId);
+        //     } else {
+        //         song.play().then(() => {
+        //             playBtn.textContent = '暂停';
+        //             if (!userTimeline) {
+        //                 // 使用默认时间轴
+        //                 timeline = [...defaultTimeline];
+        //             }
+        //             animationFrameId = requestAnimationFrame(update);
+        //         }).catch(e => {
+        //             console.error("Audio playback failed:", e);
+        //             typeLine({ text: "错误: 无法播放", className: 'error' });
+        //         });
+        //     }
+            
+        //     isPlaying = !isPlaying;
+        // }
         
         function restartExperience() {
             if (!song.src) return;
