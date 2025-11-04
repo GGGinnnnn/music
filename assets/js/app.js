@@ -35,8 +35,6 @@ function init() {
 
 function scheduleInitialMessages() {
   setTimeout(() => logger("系统初始化...", { speed: 18 }), 300);
-  setTimeout(() => logger("检测 GitHub Pages 环境...", { speed: 18 }), 1000);
-  setTimeout(() => logger("正在准备显示效果：CRT · 打字机 · 二进制雨", { speed: 18 }), 1900);
 }
 
 function attachControls() {
@@ -89,7 +87,6 @@ function updateTimeLabel() {
 }
 
 async function bootstrapSongs() {
-  logger("正在连接 GitHub 仓库...", { speed: 20 });
   elements.songsList.textContent = "读取中…";
 
   try {
