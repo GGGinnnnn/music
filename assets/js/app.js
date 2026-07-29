@@ -1,54 +1,133 @@
-import { setupBinaryRain } from "./binaryRain.js";
-import { createLogger } from "./typing.js";
-import { fetchSongIndex, buildLyricUrl } from "./songsService.js";
-import { findLyricIndex, parseLRC, renderLyrics, showLyricsMessage, updateActiveLyric } from "./lyrics.js";
+// assets/js/app.js
 
-const elements = {
-  songsList: document.getElementById("songs-list"),
-  terminal: document.getElementById("terminal"),
-  audio: document.getElementById("audio"),
-  playPause: document.getElementById("playPause"),
-  stop: document.getElementById("stopBtn"),
-  fileInfo: document.getElementById("fileInfo"),
-  timeLabel: document.getElementById("timeLabel"),
-  lyricsContent: document.getElementById("lyricsContent"),
-  binaryCanvas: document.getElementById("binaryCanvas"),
-};
+const audio = document.getElementById('audio');
+const playPauseBtn = document.getElementById('playPause');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const modeBtn = document.getElementById('modeBtn');
+const progressBar = document.getElementById('progressBar');
+const volumeBar = document.getElementById('volumeBar');
+const timeLabel = document.getElementById('timeLabel');
+const fileInfo = document.getElementById('fileInfo');
+const songsList = document.getElementById('songs-list');
+const fileInput = document.getElementById('fileInput');
+const lyricsContent = document.getElementById('lyricsContent');
+const terminal = document.getElementById('terminal');
 
-const logger = createLogger(elements.terminal);
-setupBinaryRain(elements.binaryCanvas);
+// 播放状态管理
+let playlist = []; // { name: string, url: string, artist?: string, title?: string }
+let currentIndex = -1;
+let parsedLyrics = []; // [{ time: number, text: string }]
+let playModes = ['顺序', '单曲循环', '随机'];
+let modeIndex = 0;
 
-const state = {
-  songs: [],
-  lyrics: [],
-  currentLyricIndex: -1,
-};
-
-init();
-
-function init() {
-  scheduleInitialMessages();
-  attachControls();
-  bootstrapSongs();
-  setupLyricSync();
+// 日志输出辅助函数
+function logTerminal(text) {
+  const line = document.createElement('div');
+  line.textContent = `> ${text}`;
+  terminal.appendChild(line);
+  terminal.scrollTop = terminal.scrollHeight;
 }
 
 function scheduleInitialMessages() {
   setTimeout(() => logger("系统初始化...", { speed: 18 }), 300);
 }
 
-function attachControls() {
-  elements.playPause.addEventListener("click", async () => {
-    if (elements.audio.paused) {
-      try {
-        await elements.audio.play();
-        logger("播放");
-      } catch (error) {
-        logger(`播放失败: ${error.message}`);
+// 1. 文件上传监听
+fileInput.addEventListener('change', (e) => {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+
+  files.forEach(file => {
+    // 简单解析文件名提取 歌手 - 歌名
+    const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+    const parts = nameWithoutExt.split('-');
+    let artist = '';
+    let title = nameWithoutExt;
+
+    if (parts.length > 1) {
+      artist = parts[0].trim();
+      title = parts.slice(1).join('-').trim();
+    }
+
+    playlist.push({
+      name: file.name,
+      url: URL.createObjectURL(file), // 创建本地播放内存链接，无需网络载入
+      artist,
+      title
+    });
+  });
+
+  logTerminal(`已导入 ${files.length} 首本地歌曲`);
+  renderPlaylist();
+  
+  if (currentIndex === -1 && playlist.length > 0) {
+    loadTrack(0);
+  }
+});
+
+// 2. 渲染歌曲列表
+function renderPlaylist() {
+  songsList.innerHTML = '';
+  if (playlist.length === 0) {
+    songsList.textContent = '暂无歌曲，请导入本地音频';
+    return;
+  }
+
+  playlist.forEach((track, index) => {
+    const item = document.createElement('div');
+    item.className = `song-item ${index === currentIndex ? 'active' : ''}`;
+    item.style.padding = '4px 8px';
+    item.style.cursor = 'pointer';
+    item.textContent = `${index + 1}. ${track.name}`;
+    item.onclick = () => loadTrack(index, true);
+    songsList.appendChild(item);
+  });
+}
+
+// 3. 加载并播放指定索引的歌曲
+function loadTrack(index, autoPlay = false) {
+  if (index < 0 || index >= playlist.length) return;
+  
+  currentIndex = index;
+  const track = playlist[index];
+  
+  audio.src = track.url;
+  fileInfo.textContent = track.name;
+  logTerminal(`加载歌曲: ${track.name}`);
+  renderPlaylist();
+
+  // 重置歌词
+  fetchOnlineLyrics(track.artist, track.title);
+
+  if (autoPlay) {
+    audio.play().catch(err => logTerminal(`播放失败: ${err.message}`));
+  }
+}
+
+// 4. 在线歌词检索 (使用 Netease 开源接口示例)
+async function fetchOnlineLyrics(artist, title) {
+  lyricsContent.innerHTML = '<div class="lyric-line">在线检索歌词中…</div>';
+  parsedLyrics = [];
+
+  const query = encodeURIComponent(`${artist} ${title}`.trim());
+  try {
+    // 使用公开的网易云歌词搜索 API 代理
+    const searchRes = await fetch(`https://music.163.com/api/search/get/web?csrf_token=&type=1&s=${query}&limit=1`);
+    const searchData = await searchRes.json();
+    
+    if (searchData.result && searchData.result.songs && searchData.result.songs.length > 0) {
+      const songId = searchData.result.songs[0].id;
+      
+      // 获取歌词原文
+      const lrcRes = await fetch(`https://music.163.com/api/song/lyric?os=pc&id=${songId}&lv=-1&kv=-1&tv=-1`);
+      const lrcData = await lrcRes.json();
+
+      if (lrcData.lrc && lrcData.lrc.lyric) {
+        parseLRC(lrcData.lrc.lyric);
+        logTerminal(`歌词检索成功: [${artist}] ${title}`);
+        return;
       }
-    } else {
-      elements.audio.pause();
-      logger("暂停");
     }
   });
 
@@ -99,54 +178,148 @@ async function bootstrapSongs() {
   }
 }
 
-function renderSongButtons() {
-  elements.songsList.innerHTML = "";
-  const fragment = document.createDocumentFragment();
+// 5. LRC 歌词解析
+function parseLRC(lrcText) {
+  parsedLyrics = [];
+  const lines = lrcText.split('\n');
+  const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
 
-  state.songs.forEach((song) => {
-    const button = document.createElement("button");
-    button.className = "song-btn";
-    button.innerHTML = `<span class="title">${song.name.replace(/\.[^/.]+$/, "")}</span><span class="meta">播放</span>`;
-    button.addEventListener("click", () => loadAndPlaySong(song));
-    fragment.appendChild(button);
+  lines.forEach(line => {
+    const match = timeRegex.exec(line);
+    if (match) {
+      const minutes = parseInt(match[1], 10);
+      const seconds = parseInt(match[2], 10);
+      const milliseconds = parseInt(match[3].padEnd(3, '0'), 10);
+      const time = minutes * 60 + seconds + milliseconds / 1000;
+      const text = line.replace(timeRegex, '').trim();
+      
+      if (text) {
+        parsedLyrics.push({ time, text });
+      }
+    }
   });
 
-  elements.songsList.appendChild(fragment);
+  // 按时间排序
+  parsedLyrics.sort((a, b) => a.time - b.time);
+  renderLyricsUI();
 }
 
-async function loadAndPlaySong(song) {
-  state.lyrics = [];
-  state.currentLyricIndex = -1;
-  showLyricsMessage(elements.lyricsContent, "正在加载歌词…");
-
-  logger(`加载歌曲: ${song.name}`, { speed: 18 });
-  elements.audio.src = song.downloadUrl;
-  elements.audio.crossOrigin = "anonymous";
-  elements.fileInfo.textContent = `当前: ${song.name}`;
-
-  try {
-    await elements.audio.play();
-    logger(`播放: ${song.name}`, { speed: 18 });
-  } catch (error) {
-    logger(`播放失败: ${error.message}`, { speed: 18 });
+function renderLyricsUI() {
+  lyricsContent.innerHTML = '';
+  if (parsedLyrics.length === 0) {
+    lyricsContent.innerHTML = '<div class="lyric-line">无纯文本歌词</div>';
+    return;
   }
 
-  await loadLyricsForSong(song);
+  parsedLyrics.forEach((item, i) => {
+    const div = document.createElement('div');
+    div.className = 'lyric-line';
+    div.id = `lyric-line-${i}`;
+    div.textContent = item.text;
+    lyricsContent.appendChild(div);
+  });
 }
 
-async function loadLyricsForSong(song) {
-  const lyricUrl = buildLyricUrl(song.name);
-  try {
-    const response = await fetch(lyricUrl);
-    if (!response.ok) {
-      throw new Error("未找到歌词");
+// 6. 播放进度与歌词高亮同步
+audio.addEventListener('timeupdate', () => {
+  if (isNaN(audio.duration)) return;
+
+  // 更新进度条与时间
+  const progress = (audio.currentTime / audio.duration) * 100;
+  progressBar.value = progress || 0;
+  timeLabel.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+
+  // 同步高亮歌词
+  if (parsedLyrics.length > 0) {
+    let activeIndex = -1;
+    for (let i = 0; i < parsedLyrics.length; i++) {
+      if (audio.currentTime >= parsedLyrics[i].time) {
+        activeIndex = i;
+      } else {
+        break;
+      }
     }
-    const text = await response.text();
-    state.lyrics = parseLRC(text);
-    renderLyrics(elements.lyricsContent, state.lyrics);
-    logger(`歌词加载成功: ${song.name.replace(/\.[^/.]+$/, ".lrc")}`, { speed: 18 });
-  } catch (error) {
-    showLyricsMessage(elements.lyricsContent, `未找到歌词: ${song.name.replace(/\.[^/.]+$/, ".lrc")}`);
-    logger(`歌词加载失败: ${error.message}`, { speed: 18 });
+
+    if (activeIndex !== -1) {
+      const lines = lyricsContent.querySelectorAll('.lyric-line');
+      lines.forEach((el, i) => {
+        if (i === activeIndex) {
+          if (!el.classList.contains('active')) {
+            el.classList.add('active');
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        } else {
+          el.classList.remove('active');
+        }
+      });
+    }
+  }
+});
+
+// 7. 拖拽进度条
+progressBar.addEventListener('input', (e) => {
+  if (audio.duration) {
+    audio.currentTime = (e.target.value / 100) * audio.duration;
+  }
+});
+
+// 8. 音量控制
+volumeBar.addEventListener('input', (e) => {
+  audio.volume = e.target.value;
+});
+
+// 9. 播放/暂停控制
+playPauseBtn.addEventListener('click', () => {
+  if (playlist.length === 0) return;
+
+  if (audio.paused) {
+    audio.play();
+  } else {
+    audio.pause();
+  }
+});
+
+audio.addEventListener('play', () => {
+  playPauseBtn.textContent = '暂停';
+  logTerminal('开始播放');
+});
+
+audio.addEventListener('pause', () => {
+  playPauseBtn.textContent = '播放';
+  logTerminal('暂停播放');
+});
+
+// 10. 切歌与播放结束逻辑 (支持播放模式)
+function playNext() {
+  if (playlist.length === 0) return;
+  const currentMode = playModes[modeIndex];
+
+  if (currentMode === '单曲循环') {
+    audio.currentTime = 0;
+    audio.play();
+  } else if (currentMode === '随机') {
+    const nextIdx = Math.floor(Math.random() * playlist.length);
+    loadTrack(nextIdx, true);
+  } else {
+    // 顺序播放
+    const nextIdx = (currentIndex + 1) % playlist.length;
+    loadTrack(nextIdx, true);
   }
 }
+
+function playPrev() {
+  if (playlist.length === 0) return;
+  const prevIdx = (currentIndex - 1 + playlist.length) % playlist.length;
+  loadTrack(prevIdx, true);
+}
+
+prevBtn.addEventListener('click', playPrev);
+nextBtn.addEventListener('click', playNext);
+audio.addEventListener('ended', playNext);
+
+// 切换播放模式
+modeBtn.addEventListener('click', () => {
+  modeIndex = (modeIndex + 1) % playModes.length;
+  modeBtn.textContent = playModes[modeIndex];
+  logTerminal(`播放模式切换为: ${playModes[modeIndex]}`);
+});

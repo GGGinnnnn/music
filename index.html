@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="zh-cn">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>無想のMusicPlayer — Cyber CRT</title>
-<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/main.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>無想のMusicPlayer — Cyber CRT</title>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/main.css">
 </head>
 <body>
 <div id="app">
@@ -16,28 +16,45 @@
 
   <div class="main">
     <div class="left">
-      <div class="songs-title">歌曲列表（自动读取 /songs）</div>
-      <div id="songs-list" aria-live="polite">读取中…</div>
+      <div class="songs-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+        <div class="songs-title">歌曲列表</div>
+        <label for="fileInput" class="btn file-label" style="cursor:pointer; font-size:12px;">+ 本地导入</label>
+        <input type="file" id="fileInput" accept="audio/*" multiple style="display:none;" />
+      </div>
+
+      <div id="songs-list" aria-live="polite">暂无歌曲，请导入本地音频</div>
 
       <div class="player-area">
-        <div class="audio-controls">
-          <button id="playPause" class="btn primary">播放 / 暂停</button>
-          <button id="stopBtn" class="btn">停止</button>
-          <div style="flex:1"></div>
-          <div id="timeLabel" style="font-size:12px;color:rgba(0,255,65,0.7)">00:00 / 00:00</div>
+        <div class="progress-area" style="margin-bottom: 8px;">
+          <input type="range" id="progressBar" min="0" max="100" value="0" style="width: 100%; cursor: pointer;" />
         </div>
-        <div class="file-info" id="fileInfo">未加载文件</div>
+
+        <div class="audio-controls" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <button id="prevBtn" class="btn">上一首</button>
+          <button id="playPause" class="btn primary">播放</button>
+          <button id="nextBtn" class="btn">下一首</button>
+          <button id="modeBtn" class="btn" title="切换播放模式">顺序</button>
+          
+          <div id="timeLabel" style="font-size:12px; color:rgba(0,255,65,0.7); margin-left: auto;">00:00 / 00:00</div>
+        </div>
+
+        <div class="extra-controls" style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+          <div class="file-info" id="fileInfo">未加载文件</div>
+          <div class="volume-control" style="display: flex; align-items: center; gap: 5px;">
+            <span style="font-size: 12px; color: rgba(0,255,65,0.7);">音量</span>
+            <input type="range" id="volumeBar" min="0" max="1" step="0.05" value="0.8" style="width: 60px;" />
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="right visuals">
       <canvas id="binaryCanvas" class="binary-canvas"></canvas>
 
-      <div class="terminal" id="terminal" style="position:relative;z-index:2">
-        <!-- 动态打字机日志 -->
-      </div>
+      <div class="terminal" id="terminal" style="position:relative; z-index:2">
+        </div>
 
-      <div class="lyrics-wrap" id="lyricsWrap" style="position:relative;z-index:2">
+      <div class="lyrics-wrap" id="lyricsWrap" style="position:relative; z-index:2">
         <div id="lyricsContent"><div class="lyric-line">歌词未加载</div></div>
       </div>
     </div>
