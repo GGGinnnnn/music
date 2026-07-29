@@ -1,3 +1,5 @@
+## 废弃项目
+
 # 無想のMusicPlayer
 
 静态音乐播放器已使用 ES 模块重新配置。 index.html 加载 assets/css/main.css 和  assets/js 下的模块，并引用 GitHub API 中的 songs/ 和 lyrics/ 来进行播放和歌词同步。
