@@ -1,10 +1,12 @@
 <!DOCTYPE html>
-<html lang="zh-cn">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>無想のMusicPlayer — Cyber CRT</title>
+  
   <link rel="modulepreload" href="assets/js/app.js">
+  
   <link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/main.css">
 </head>
@@ -17,22 +19,17 @@
 
   <div class="main">
     <div class="left">
-      <div class="songs-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
-        <div class="songs-title">歌曲列表</div>
-        <button class="btn file-label" onclick="document.getElementById('fileInput').click()" style="font-size:12px;">+ 本地导入</button>
-        <input type="file" id="fileInput" accept="audio/*" multiple style="display:none;" />
-      </div>
+      <div class="songs-title">歌曲列表（GitHub /songs 目录）</div>
+      <div id="songs-list" aria-live="polite">读取中…</div>
 
-      <div id="songs-list" aria-live="polite">暂无歌曲，请导入本地音频</div>
-
-      <div class="player-area">
+      <div class="player-area" style="margin-top: 12px;">
         <div class="progress-area" style="margin-bottom: 8px;">
           <input type="range" id="progressBar" min="0" max="100" value="0" style="width: 100%; cursor: pointer;" />
         </div>
 
         <div class="audio-controls" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
           <button id="prevBtn" class="btn">上一首</button>
-          <button id="playPause" class="btn primary">播放</button>
+          <button id="playPause" class="btn primary">播放 / 暂停</button>
           <button id="nextBtn" class="btn">下一首</button>
           <button id="modeBtn" class="btn" title="切换播放模式">顺序</button>
           
