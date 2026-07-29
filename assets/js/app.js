@@ -106,30 +106,38 @@ function loadTrack(index, autoPlay = false) {
 }
 
 // 4. 在线歌词检索 (使用 Netease 开源接口示例)
-async function fetchOnlineLyrics(artist, title) {
-  lyricsContent.innerHTML = '<div class="lyric-line">在线检索歌词中…</div>';
-  parsedLyrics = [];
+// 修改 app.js 中的 fetchOnlineLyrics 函数
+  async function fetchOnlineLyrics(artist, title) {
+    lyricsContent.innerHTML = '<div class="lyric-line">在线检索歌词中…</div>';
+    parsedLyrics = [];
 
-  const query = encodeURIComponent(`${artist} ${title}`.trim());
-  try {
-    // 使用公开的网易云歌词搜索 API 代理
-    const searchRes = await fetch(`https://music.163.com/api/search/get/web?csrf_token=&type=1&s=${query}&limit=1`);
-    const searchData = await searchRes.json();
+    const query = encodeURIComponent(`${artist} ${title}`.trim());
     
-    if (searchData.result && searchData.result.songs && searchData.result.songs.length > 0) {
-      const songId = searchData.result.songs[0].id;
+    try {
+      // 使用支持 CORS 的代理 API（或开源歌词代理 API）
+      const searchRes = await fetch(`https://api.lrc.tf/v2/search?keyword=${query}`);
       
-      // 获取歌词原文
-      const lrcRes = await fetch(`https://music.163.com/api/song/lyric?os=pc&id=${songId}&lv=-1&kv=-1&tv=-1`);
-      const lrcData = await lrcRes.json();
-
-      if (lrcData.lrc && lrcData.lrc.lyric) {
-        parseLRC(lrcData.lrc.lyric);
-        logTerminal(`歌词检索成功: [${artist}] ${title}`);
-        return;
+      if (!searchRes.ok) {
+        throw new Error(`网络响应错误: ${searchRes.status}`);
       }
+
+      const data = await searchRes.json();
+      
+      // 如果找到了歌词
+      if (data && data.lrc) {
+        parseLRC(data.lrc);
+        logTerminal(`歌词检索成功: ${artist} - ${title}`);
+      } else {
+        lyricsContent.innerHTML = '<div class="lyric-line">未检索到匹配歌词</div>';
+        logTerminal('未检索到匹配歌词');
+      }
+    } catch (err) {
+      // 捕获跨域或网络报错，保证音频依然能正常播放
+      console.warn('歌词检索遭遇跨域或请求失败:', err);
+      logTerminal(`歌词获取失败 (建议手动加载)`);
+      lyricsContent.innerHTML = '<div class="lyric-line">歌词获取失败</div>';
     }
-  });
+  }
 
   elements.stop.addEventListener("click", () => {
     elements.audio.pause();
