@@ -54,7 +54,9 @@ async function fetchSongsFromGitHub() {
     const files = await res.json();
     
     // 筛选音频文件 (mp3, wav, flac, ogg)
-    const audioFiles = files.filter(file => /\.(mp3|wav|flac|ogg)$/i.test(file.name));
+    const audioFiles = files.filter(file => 
+      /\.(mp3|wav|flac|ogg|oga|m4a|aac|webm|opus|ape|wma|aiff)$/i.test(file.name)
+    );
 
     if (audioFiles.length === 0) {
       songsList.textContent = 'songs 目录下未找到音频文件';
